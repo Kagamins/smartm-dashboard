@@ -1,139 +1,170 @@
-"use client";
-import { useState, useEffect } from "react";
-import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
-import { FetchAttendance } from "@/utils/attendanceFetch";
-import { FetchPermissions } from "@/utils/permissionsFetch";
-import { FetchAbscense } from "@/utils/abscenceFetch";
+import { supabase } from "@/utils/dataBase";
+import ChartComponent from "@/components/ChartComponent";
+function formatDate(dateString) {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0"); // Month is zero-based
+    const day = String(date.getDate()).padStart(2, "0");
 
-// ✅ Function to format date to YYYY-MM-DD
-
-function formatDateToLocal(date) {
-  if (!date) return null;
-
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0"); // Month is zero-based
-  const day = String(date.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
+    return `${year}-${month}-${day}`;
 }
 
-// ✅ Function to filter unique users based on `user` field
-function getUniqueUsers(data) {
-    return [...new Set(data.map(item => item.user))].length;
+async function fetchAttendanceData() {
+    const today = new Date();
+    const pastWeek = new Date();
+    pastWeek.setDate(pastWeek.getDate() - 6);
+
+    // Format date to YYYY-MM-DD
+ 
+    const pastWeekDate = formatDate(pastWeek);
+    const todayDate = formatDate(today);
+
+    // Fetch Attendance Data
+    const { data: attendance } = await supabase
+        .from("Attendance")
+        .select("*")
+        .gte("created_at", pastWeekDate)
+        .lte("created_at", todayDate);
+
+    // Remove duplicate users (Only first record per user per day)
+    const uniqueAttendance = [];
+    const seenUsers = new Set();
+    attendance?.forEach((entry) => {
+        const dateKey = entry.created_at?.split("T")[0];
+        const uniqueKey = `${entry.user}-${dateKey}`;
+        if (!seenUsers.has(uniqueKey)) {
+            uniqueAttendance.push(entry);
+            seenUsers.add(uniqueKey);
+        }
+    });
+
+    // Fetch Permissions Data
+    const { data: permissions } = await supabase
+        .from("Permissions")
+        .select("*")
+        .gte("date", pastWeekDate)
+        .lte("date", todayDate);
+
+    // Fetch Absences Data
+    const { data: absences } = await supabase
+        .from("Absences")
+        .select("*")
+        .gte("created_at", pastWeekDate)
+        .lte("created_at", todayDate);
+
+    return {
+        attendance: uniqueAttendance || [],
+        permissions: permissions || [],
+        absences: absences || [],
+    };
 }
 
-export default function Dashboard() {
-    const [selectedDate, setSelectedDate] = useState(new Date());
-    const [user, setUser] = useState(null);
-    const [attendanceCount, setAttendanceCount] = useState(0);
-    const [permissionsCount, setPermissionsCount] = useState(0);
-    const [absencesCount, setAbsencesCount] = useState(0);
-    const [loading, setLoading] = useState(false);
+ 
 
-    // ✅ Load User Data from Local Storage
-    useEffect(() => {
-        const storedUser = localStorage.getItem("user");
-        if (!storedUser) {
-            window.location.href = "/login";
-        } else {
-            setUser(JSON.parse(storedUser));
-        }
-    }, []);
+export default async function Dashboard() {
+    const { attendance, permissions, absences } = await fetchAttendanceData();
 
-    // ✅ Fetch Data Based on Date & Organization
-    const fetchData = async () => {
-        if (!user) return;
-        setLoading(true);
+    // **Arabic Weekday Labels (Sunday - Thursday)**
+    const weekdays = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس"];
 
-        try {
-            const formattedDate = formatDateToLocal(selectedDate);
+    // **Function to Get Arabic Weekday & Date Label**
+    function getDateLabel(dateString) {
+        const date = new Date(dateString);
+        const formattedDate = date.toISOString().split("T")[0]; // YYYY-MM-DD
+        const arabicDay = weekdays[date.getDay()];
+        return `${arabicDay} - ${formattedDate}`; // **Example: الأحد - 2025-02-11**
+    }
 
-            // ✅ Fetch Attendance Data & Filter Unique Users
-            const attendanceResponse = await FetchAttendance(formattedDate, user.organization);
-            if (attendanceResponse.success) {
-                setAttendanceCount(getUniqueUsers(attendanceResponse.data));
+    // **Filter Data to Include Only Sunday-Thursday**
+    const filteredAttendance = attendance.filter(a => weekdays.includes(getDateLabel(a.created_at).split(" - ")[0]));
+    const filteredPermissions = permissions.filter(p => weekdays.includes(getDateLabel(p.created_at).split(" - ")[0]));
+    const filteredAbsences = absences.filter(a => weekdays.includes(getDateLabel(a.created_at).split(" - ")[0]));
+
+    // **Extract Unique Days**
+    const dates = [...new Set(filteredAttendance.map(a => getDateLabel(a.created_at)))].sort(
+        (a, b) => weekdays.indexOf(a.split(" - ")[0]) - weekdays.indexOf(b.split(" - ")[0])
+    );
+
+    // **Count Unique Users Per Day**
+    const countUnique = (data, dateKey) => {
+        const seenUsers = new Set();
+        return data.filter(entry => {
+            const key = `${entry.user}-${getDateLabel(entry.created_at)}`;
+            if (!seenUsers.has(key) && getDateLabel(entry.created_at) === dateKey) {
+                seenUsers.add(key);
+                return true;
             }
+            return false;
+        }).length;
+    };
 
-            // ✅ Fetch Permissions Data & Filter Unique Users
-            const permissionsResponse = await FetchPermissions(formattedDate, user.organization);
-            if (permissionsResponse.success) {
-                setPermissionsCount(getUniqueUsers(permissionsResponse.data));
-            }
+    const attendanceCounts = dates.map(date => countUnique(filteredAttendance, date));
+    const permissionCounts = dates.map(date => countUnique(filteredPermissions, date));
+    const absenceCounts = dates.map(date => countUnique(filteredAbsences, date));
 
-            // ✅ Fetch Absences Data & Filter Unique Users
-            const absencesResponse = await FetchAbscense(formattedDate, user.organization);
-            if (absencesResponse.success) {
-                setAbsencesCount(getUniqueUsers(absencesResponse.data));
-            }
+    // **Chart Data Configurations (Horizontal Bar Charts)**
+    const attendanceChartData = {
+        labels: dates,
+        datasets: [
+            {
+                label: "الحضور",
+                data: attendanceCounts,
+                borderColor: "blue",
+                backgroundColor: "rgba(0, 0, 255, 0.5)",
+            },
+        ],
+    };
 
-        } catch (error) {
-            console.error("Error fetching data:", error);
-        } finally {
-            setLoading(false);
-        }
+    const permissionsChartData = {
+        labels: dates,
+        datasets: [
+            {
+                label: "الإستئذانات",
+                data: permissionCounts,
+                borderColor: "green",
+                backgroundColor: "rgba(0, 255, 0, 0.5)",
+            },
+        ],
+    };
+
+    const absencesChartData = {
+        labels: dates,
+        datasets: [
+            {
+                label: "الغياب",
+                data: absenceCounts,
+                borderColor: "red",
+                backgroundColor: "rgba(255, 0, 0, 0.5)",
+            },
+        ],
     };
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-6">
-            {/* Dashboard Header */}
-            <h1 className="text-4xl font-bold text-gray-800 mb-6">📊 لوحة التحكم</h1>
+        <div className="flex flex-col items-center p-6">
+            <h1 className="text-3xl font-bold mb-6">لوحة البيانات</h1>
 
-            {/* Date Picker & Fetch Button */}
-            <div className="mb-6 flex items-center gap-4">
-                <h2 className="text-xl text-gray-700 font-semibold">اختر التاريخ:</h2>
-                <DatePicker
-                    selected={selectedDate}
-                    onChange={(date) => setSelectedDate(date)}
-                    dateFormat="yyyy-MM-dd"
-                    className="p-2 border rounded-lg w-40 text-center text-black"
-                />
-                <button 
-                    onClick={fetchData} 
-                    className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg shadow-lg"
-                >
-                    تحميل البيانات
-                </button>
-            </div>
-
-            {/* Dashboard Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-5xl">
-                {/* Attendees Card */}
-                <div className="bg-blue-500 text-white p-6 rounded-lg shadow-lg flex flex-col items-center">
-                    <h2 className="text-2xl font-bold">الحضور</h2>
-                    {loading ? (
-                        <p className="text-lg mt-2">جاري التحميل...</p>
-                    ) : (
-                        <p className="text-5xl font-bold mt-2">{attendanceCount}</p>
-                    )}
+            {/* Grid Layout for Side-by-Side Charts */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-7xl">
+                {/* Attendance Chart */}
+                <div className="bg-white shadow-md rounded-lg p-6">
+                    <h2 className="text-xl font-semibold mb-4 text-center">إحصائيات الحضور</h2>
+                    <ChartComponent chartData={attendanceChartData} horizontal={true} />
                 </div>
 
-                {/* Permissions Card */}
-                <div className="bg-green-500 text-white p-6 rounded-lg shadow-lg flex flex-col items-center">
-                    <h2 className="text-2xl font-bold">الإستئذانات</h2>
-                    {loading ? (
-                        <p className="text-lg mt-2">جاري التحميل...</p>
-                    ) : (
-                        <p className="text-5xl font-bold mt-2">{permissionsCount}</p>
-                    )}
+                {/* Permissions Chart */}
+                <div className="bg-white shadow-md rounded-lg p-6">
+                    <h2 className="text-xl font-semibold mb-4 text-center">إحصائيات الإستئذانات</h2>
+                    <ChartComponent chartData={permissionsChartData} horizontal={true} />
                 </div>
 
-                {/* Absences Card */}
-                <div className="bg-red-500 text-white p-6 rounded-lg shadow-lg flex flex-col items-center">
-                    <h2 className="text-2xl font-bold">الغياب</h2>
-                    {loading ? (
-                        <p className="text-lg mt-2">جاري التحميل...</p>
-                    ) : (
-                        <p className="text-5xl font-bold mt-2">{absencesCount}</p>
-                    )}
+                {/* Absences Chart */}
+                <div className="bg-white shadow-md rounded-lg p-6">
+                    <h2 className="text-xl font-semibold mb-4 text-center">إحصائيات الغياب</h2>
+                    <ChartComponent chartData={absencesChartData} horizontal={true} />
                 </div>
-            </div>
-
-            {/* Placeholder for more data */}
-            <div className="w-full max-w-5xl items-center mt-6 bg-white p-6 rounded-lg shadow-lg">
-                <h3 className="text-xl text-center font-semibold text-gray-700">📌 نظرة عامة</h3>
-                <p className="text-gray-600 text-center mt-2">يمكنك رؤية ملخص الحضور، الإستئذانات، والغياب لهذا اليوم.</p>
             </div>
         </div>
     );
 }
+ 
