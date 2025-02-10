@@ -7,7 +7,7 @@ ChartJS.register(BarElement, CategoryScale, LinearScale, Title, Tooltip, Legend)
 
 export default function ChartComponent({ chartData, horizontal = false }) {
     const options = {
-        indexAxis: horizontal ? "y" : "x", // **Make it horizontal**
+        indexAxis: horizontal ? "x" : "y", // **Make it horizontal**
         responsive: true,
         plugins: {
             legend: { position: "top" },
