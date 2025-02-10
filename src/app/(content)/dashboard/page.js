@@ -24,9 +24,8 @@ async function fetchAttendanceData() {
     const { data: attendance } = await supabase
         .from("Attendance")
         .select("*")
-        .gte("created_at", pastWeekDate)
-        .lte("created_at", todayDate);
-
+        .gte("created_at", pastWeekDate);
+ 
     // Remove duplicate users (Only first record per user per day)
     const uniqueAttendance = [];
     const seenUsers = new Set();
@@ -43,16 +42,14 @@ async function fetchAttendanceData() {
     const { data: permissions } = await supabase
         .from("Permissions")
         .select("*")
-        .gte("date", pastWeekDate)
-        .lte("date", todayDate);
-
+        .gte("date", pastWeekDate);
+ 
     // Fetch Absences Data
     const { data: absences } = await supabase
         .from("Absences")
         .select("*")
-        .gte("created_at", pastWeekDate)
-        .lte("created_at", todayDate);
-
+        .gte("created_at", pastWeekDate);
+ 
     return {
         attendance: uniqueAttendance || [],
         permissions: permissions || [],
