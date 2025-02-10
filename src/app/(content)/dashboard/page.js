@@ -40,13 +40,13 @@ async function fetchAttendanceData() {
 
     // Fetch Permissions Data
     const { data: permissions } = await supabase
-        .from("Permissions")
+        .from("permissions")
         .select("*")
         .gte("date", pastWeekDate);
  
     // Fetch Absences Data
     const { data: absences } = await supabase
-        .from("Absences")
+        .from("statements")
         .select("*")
         .gte("created_at", pastWeekDate);
  
