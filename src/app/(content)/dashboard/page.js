@@ -98,17 +98,17 @@ export default async function Dashboard() {
 
     const attendanceChartData = {
         labels: dates,
-        datasets: createChartDatasets(attendance, "الحضور"),
+        datasets: createChartDatasets(attendance, ""),
     };
 
     const permissionsChartData = {
         labels: dates,
-        datasets: createChartDatasets(permissions, "الإستئذانات"),
+        datasets: createChartDatasets(permissions, ""),
     };
 
     const absencesChartData = {
         labels: dates,
-        datasets: createChartDatasets(absences, "الغياب"),
+        datasets: createChartDatasets(absences, ""),
     };
 
     return (
