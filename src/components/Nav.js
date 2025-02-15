@@ -1,7 +1,7 @@
 
 "use client";
 import { useState } from "react";
-import { Home, Users, Folder, Calendar, LogOut } from "lucide-react";
+import { Home, Users, Folder, Calendar, LogOut ,Receipt } from "lucide-react";
 
 export default function TopNavigation(user ) {
     const userData = user?.user;
@@ -21,10 +21,12 @@ export default function TopNavigation(user ) {
 
             {/* Center Section (Navigation Menu) */}
             <ul className="flex space-x-12">
+                <NavItem icon={<Receipt size={30} />} text="تقرير الحالة" link="/report"color='bg-cyan-600' />
                 <NavItem icon={<Calendar size={30} />} text="الحضور و الإنصراف" link="/attendance" color='bg-cyan-600' />
                 <NavItem icon={<Folder size={30} />} text="الغياب" link="/absences" color='bg-cyan-600'/>
                 <NavItem icon={<Users size={30} />} text="الإستئذانات" link="/permissions" color='bg-cyan-600'/>
                 <NavItem icon={<Home size={30} />} text="البيانات الأساسية" link="/dashboard"color='bg-cyan-600' />
+
             </ul>
 
             {/* Right Section (User Info & Logout) */}
