@@ -7,27 +7,36 @@ import jsPDF from "jspdf";
 import PieChart from '@/components/PieChartComponent';
 import html2canvas from "html2canvas";
 
-// ✅ Function to format date to YYYY-MM-DD
-function formatDate(date) {
-    return date.toISOString().split("T")[0];
+ // ✅ Function to format date to YYYY-MM-DD
+function formatDate(dateString) {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0"); // Month is zero-based
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
 }
 
 // ✅ Arabic Weekdays (Sunday - Thursday)
-const weekdays = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس"];
+const weekdays = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس","الجمعة","السبت"];
 
 export default function Report() {
     const [users, setUsers] = useState([]);
+    const [userData, setUserData] = useState(null);
     const [selectedUser, setSelectedUser] = useState("");
     const [selectedDate, setSelectedDate] = useState(null);
     const [attendance, setAttendance] = useState([]);
     const [permissions, setPermissions] = useState([]);
     const [absences, setAbsences] = useState([]);
     const [error, setError] = useState("");
-    const reportRef = useRef(null); // ✅ Reference for capturing screenshot
+    const reportRef = useRef(null);
 
     useEffect(() => {
         async function fetchUsers() {
-            const { data, error } = await supabase.from("users").select("*");
+
+ 
+            const { data, error } = await supabase.from("users").select("*").order('username',{ascending:true});
             if (error) {
                 console.error("Error fetching users:", error);
                 return;
@@ -36,12 +45,11 @@ export default function Report() {
         }
         fetchUsers();
     }, []);
-
+ 
     function getDateLabel(dateString) {
         const date = new Date(dateString);
-        const formattedDate = date.toISOString().split("T")[0]; // YYYY-MM-DD
         const arabicDay = weekdays[date.getDay()];
-        return `${arabicDay} - ${formattedDate}`;
+        return `${arabicDay} - ${formatDate(date)}`;
     }
 
     const fetchData = async () => {
@@ -66,6 +74,11 @@ export default function Report() {
                 .gte("created_at", startDate)
                 .lte("created_at", endDate);
 
+            const { data: userData } = await supabase
+                .from("users")
+                .select("*")
+                .eq("username", selectedUser);
+
             const { data: permissionsData } = await supabase
                 .from("permissions")
                 .select("*")
@@ -80,8 +93,7 @@ export default function Report() {
                 .gte("created_at", startDate)
                 .lte("created_at", endDate);
 
-            console.log(attendanceData, permissionsData, absencesData);
-
+            setUserData(userData || null);
             setAttendance(attendanceData || []);
             setPermissions(permissionsData || []);
             setAbsences(absencesData || []);
@@ -92,15 +104,41 @@ export default function Report() {
         }
     };
 
-    // ✅ Collect all unique dates across Attendance, Permissions, and Absences
-    const allDates = new Set();
-    attendance.forEach((item) => allDates.add(getDateLabel(item.created_at)));
-    permissions.forEach((item) => allDates.add(getDateLabel(item.date)));
-    absences.forEach((item) => allDates.add(getDateLabel(item.created_at)));
+    // ✅ Generate all weekdays from Sunday to Thursday for the selected month
+    const getWeekdaysInMonth = () => {
+        const year = selectedDate?.getFullYear();
+        const month = selectedDate?.getMonth();
+        if (year === undefined || month === undefined) return [];
+    
+        const today = new Date(); // Current Date
+        const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+    
+        const dates = [];
+        const date = new Date(year, month, 1);
+    
+        while (date.getMonth() === month) {
+            const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+            
+            // If selected month is current month, stop at today
+            if (isCurrentMonth && date > today) break;
+    
+            if (dayOfWeek >= 0 && dayOfWeek <= 4) { // Sunday to Thursday
+                dates.push(formatDate(date));
+            }
+            date.setDate(date.getDate() + 1);
+        }
+        return dates;
+    };
+    
+    
 
-    const sortedDates = [...allDates]
-        .filter(date => weekdays.includes(new Date(date).toLocaleDateString("ar-EG", { weekday: "long" })))
-        .sort((a, b) => new Date(a) - new Date(b));
+    // ✅ Get all weekdays for the selected month
+    const allDates = getWeekdaysInMonth();
+
+    // ✅ Count total attendance, permissions, and absences
+    const totalAttendance = attendance.length;
+    const totalPermissions = permissions.length;
+    const totalAbsences = absences.length;
 
     // ✅ Pie Chart Data
     const pieChartData = {
@@ -108,7 +146,7 @@ export default function Report() {
         datasets: [
             {
                 label: "نسبة البيانات",
-                data: [attendance.length, permissions.length, absences.length],
+                data: [totalAttendance, totalPermissions, totalAbsences],
                 backgroundColor: ["#4CAF50", "#FF9800", "#F44336"],
                 borderWidth: 1,
             },
@@ -131,14 +169,14 @@ export default function Report() {
     };
 
     return (
-        <div  className="p-6 flex flex-col items-center">
+        <div className="p-6 flex flex-col items-center">
             <h1 className="text-2xl font-bold mb-4">تقرير الموظف</h1>
 
             {/* ✅ User Dropdown */}
             <select
                 value={selectedUser}
                 onChange={(e) => setSelectedUser(e.target.value)}
-                className="p-2 border rounded-lg w-60 text-black"
+                className="p-2 border rounded-lg w-80 text-black"
             >
                 <option key={0} value="">اختر موظف</option>
                 {users.map((user) => (
@@ -153,50 +191,52 @@ export default function Report() {
                 placeholderText="إختر الشهر"
                 dateFormat="yyyy-MM"
                 showMonthYearPicker
-                className="p-2 border rounded-lg w-40 text-black text-center mb-4"
+                className="p-2 border rounded-lg w-40 text-black text-center m-4"
             />
 
-            <button onClick={fetchData} className="bg-blue-500 text-white px-6 py-2 rounded-lg mb-4">
+            <button onClick={fetchData} className="bg-blue-500 text-white px-6 py-2 rounded-lg m-4">
                 تحميل البيانات
+            </button>
+            <button onClick={generatePDF} className="bg-green-500 text-white px-6 py-2 rounded-lg m-4">
+                تحميل التقرير PDF
             </button>
 
             {/* ✅ Content to be captured */}
-            <div ref={reportRef} className="w-full max-w-2xl bg-white shadow-lg rounded-lg p-4">
-                {selectedUser ? (<h1 className=' text-black text-center' >  تقرير  : {selectedUser}  </h1>): (<h1 className=' text-black text-center' > لم يتم إختيار الموظف </h1>)} 
+            <div ref={reportRef} className="w-full max-w-4xl bg-white shadow-lg rounded-lg p-4">
+                <h1 className='text-black text-center'> تقرير : {selectedUser} </h1>
                 <PieChart data={pieChartData} />
+{/* ✅ Data Table */}
+<table className="w-full border-collapse border border-gray-300 mt-6">
+    <thead className="bg-blue-500 text-white">
+        <tr>
+            <th className="p-3 border">التاريخ</th>
+            <th className="p-3 border">الحضور</th>
+            <th className="p-3 border">الإستئذانات</th>
+            <th className="p-3 border">الغياب</th>
+        </tr>
+    </thead>
+    <tbody>
+        {allDates.map((date) => (
+            <tr key={date} className="text-center border-b">
+                <td className="p-3 border text-black">{getDateLabel(date)}</td>
+                <td className="p-3 border text-black">{attendance.some(a => formatDate(a.created_at) === date) ? "✔" : "❌"}</td>
+                <td className="p-3 border text-black">{permissions.some(p => formatDate(p.date) === date) ? "✔" : "❌"}</td>
+                <td className="p-3 border text-black">{absences.some(a => formatDate(a.created_at) === date) ? "✔" : "❌"}</td>
+            </tr>
+        ))}
+    </tbody>
+    {/* ✅ Total Row */}
+    <tfoot className="bg-gray-200 font-bold">
+        <tr className="text-center">
+            <td className="p-3 text-black  border">المجموع</td>
+            <td className="p-3 text-black  border">{totalAttendance} يوم</td>
+            <td className="p-3 text-black border">{totalPermissions} يوم</td>
+            <td className="p-3 text-black border">{totalAbsences} يوم</td>
+        </tr>
+    </tfoot>
+</table>
 
-                {/* ✅ Data Table */}
-                <table className="w-full border-collapse border border-gray-300 mt-6">
-                    <thead className="bg-blue-500 text-white">
-                        <tr>
-                            <th className="p-3 border">التاريخ</th>
-                            <th className="p-3 border">الحضور</th>
-                            <th className="p-3 border">الإستئذانات</th>
-                            <th className="p-3 border">الغياب</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {sortedDates.map((date) => (
-                            <tr key={date} className="text-center border-b">
-                                <td className="p-3 border text-black">{getDateLabel(date)}</td>
-                                <td className="p-3 border text-black">
-                                    {attendance.some(a => getDateLabel(a.created_at) === date) ? "✔" : "❌"}
-                                </td>
-                                <td className="p-3 border text-black">
-                                    {permissions.some(p => getDateLabel(p.date) === date) ? "✔" : "❌"}
-                                </td>
-                                <td className="p-3 border text-black">
-                                    {absences.some(a => getDateLabel(a.created_at) === date) ? "✔" : "❌"}
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
             </div>
-
-            <button onClick={generatePDF} className="bg-green-500 text-white px-6 py-2 rounded-lg mt-4">
-                تحميل التقرير PDF
-            </button>
         </div>
     );
 }
