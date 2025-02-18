@@ -7,6 +7,17 @@ const nextConfig = { env: {
     SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
   },
  
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'ryjcmqncutzamvlgherw.supabase.co',
+        port: '',
+         search: '',
+      },
+    ],
+  },
+ 
 };
 
 export default nextConfig;

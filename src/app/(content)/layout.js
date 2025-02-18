@@ -1,7 +1,5 @@
-"use client";
-import { Geist, Geist_Mono } from "next/font/google";
-import { useEffect,useState } from "react";
-import "../globals.css";
+ import { Geist, Geist_Mono } from "next/font/google";
+ import "../globals.css";
 import TopNavigation from "@/components/Nav";
 
 const geistSans = Geist({
@@ -17,22 +15,13 @@ const geistMono = Geist_Mono({
  
 
 export default function RootLayout({ children }) {
-  const [user, setUser] = useState(null);
-
-  useEffect(() => {
-         const storedUser = localStorage.getItem("user");
-         if (!storedUser) {
-             window.location.href = "/login";
-         } else {
-             setUser(JSON.parse(storedUser));
-          }
-     }, []);
+  
   return (
     <html lang="ar">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <TopNavigation user = {user}   />
+        <TopNavigation    />
         {children}
 
 
