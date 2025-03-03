@@ -4,6 +4,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { FetchPermissions } from "@/utils/permissionsFetch";
 import { ManagePermissions } from "@/utils/permissionDecision";
+import { fetchOrganizations } from "@/utils/fetchOrgNames";
 // Function to format date correctly in "YYYY-MM-DD" without shifting days
 function formatDateToLocal(date) {
     if (!date) return null;
@@ -24,8 +25,12 @@ export default function PermissionsTab() {
     const [data, setData] = useState([]);
     const [decision, setDecision] = useState("");
     const [id, setID] = useState(null);
+    const [organizationList,setOrganizationsList]=useState([]);
+    const [organization,setOrganization]=useState('');
 
     useEffect(() => {
+        fetchOrg();
+
         const storedUser = localStorage.getItem("user");
         if (!storedUser) {
             window.location.href = "/login";
@@ -44,19 +49,27 @@ export default function PermissionsTab() {
             setError(response.error);
         }
     };
-
+    const fetchOrg= async(e)=> {
+        const repsonseorg = await fetchOrganizations();
+        if (repsonseorg.success) {
+            setOrganizationsList(repsonseorg.data);
+        } else {
+            setOrganizationsList(repsonseorg.error);
+            setData([]);
+        }
+    };
     const fetchData = async (e) => {
         e.preventDefault();
-    
+        
         if (!pickedDate) {
             setError("يرجى اختيار تاريخ أولاً!"); 
             return;
         }
-    
+        
         // ✅ Corrected date formatting to prevent -1 day issue
         const formattedDate = formatDateToLocal(new Date(pickedDate));
-    
-        const response = await FetchPermissions(formattedDate, user?.organization);
+        
+        const response = await FetchPermissions(formattedDate,  organization);
     
         if (response.success) {
             setData(response.data);
@@ -80,7 +93,17 @@ export default function PermissionsTab() {
                     className="p-2 border rounded-lg w-60 text-black text-center"
                 />
             </div>
-
+            {/* ✅ organization Dropdown */}
+            <select
+                value={organization}
+                onChange={(e) => setOrganization(e.target.value)}
+                className="p-2 border mb-4 rounded-lg w-80 text-black"
+            >
+                <option key={0} value="">اختر المؤسسة</option>
+                {organizationList.map((org) => (
+                    <option key={org.name} value={org.name}>{org.name}</option>
+                ))}
+            </select>
             {/* Fetch Data Button */}
             <button 
                 onClick={fetchData}
@@ -88,6 +111,8 @@ export default function PermissionsTab() {
             >
                 تحميل البيانات
             </button>
+
+
 
             {/* Data Table */}
             <div className="flex-grow p-6 bg-gray-100 flex items-center justify-center w-full">
