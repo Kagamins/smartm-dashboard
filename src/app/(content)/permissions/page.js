@@ -5,6 +5,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import { FetchPermissions } from "@/utils/permissionsFetch";
 import { ManagePermissions } from "@/utils/permissionDecision";
 import { fetchOrganizations } from "@/utils/fetchOrgNames";
+import { DeletePermissions } from "@/utils/permissionDelete";
 // Function to format date correctly in "YYYY-MM-DD" without shifting days
 function formatDateToLocal(date) {
     if (!date) return null;
@@ -33,7 +34,7 @@ export default function PermissionsTab() {
 
         const storedUser = localStorage.getItem("user");
         if (!storedUser) {
-            window.location.href = "/login";
+            window.location.href = "/";
         } else {
             setUser(JSON.parse(storedUser));
         }
@@ -44,6 +45,16 @@ export default function PermissionsTab() {
         const response = await ManagePermissions(id, decision);
         if (response.success) {
             console.log("Permission updated successfully!");
+            fetchData;
+        } else {
+            setError(response.error);
+        }
+    };
+    const deleteData = async () => {
+        if (!id) return;
+         const response = await DeletePermissions(id);
+        if (response.success) {
+            console.log("Permission deleted successfully!");
             fetchData;
         } else {
             setError(response.error);
@@ -122,6 +133,8 @@ export default function PermissionsTab() {
                             {/* Table Header */}
                             <thead className="bg-blue-500 text-white">
                                 <tr>
+                                <th className="p-3 border">إلغاء</th>
+ 
                                     <th className="p-3 border">التاريخ</th>
                                     <th className="p-3 border">كشف التوقيع</th>
                                     <th className="p-3 border">النوع</th>
@@ -139,6 +152,15 @@ export default function PermissionsTab() {
                             <tbody>
                                 {data.map((item, index) => (
                                     <tr key={index} className="text-center border-b">
+                                        <td className="p-3 border text-black"> 
+                                        <button 
+                                               onClick={() => { setID(item.id);   deleteData(); }} 
+                                               className="text-green-600 p-2 border rounded-lg"
+                                           >
+                                            إلغاء الإستئذان
+</button>
+                                        </td>
+
                                         <td className="p-3 border text-black">{item.date}</td>
                                         
                                         {item.attachement ? (

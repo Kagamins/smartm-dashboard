@@ -29,7 +29,7 @@ export default function AbscentTab() {
     useEffect(() => {
         const storedUser = localStorage.getItem("user");
         if (!storedUser) {
-            window.location.href = "/login";
+            window.location.href = "/";
         } else {
             setUser(JSON.parse(storedUser));
         }
